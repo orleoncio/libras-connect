@@ -1,0 +1,20 @@
+# Configurações locais e credenciais
+.env
+.env.*
+!.env.example
+.aws/
+.codex/
+.agents/
+
+# Dependências e artefatos
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+*.log
+
+# Arquivos locais
+.DS_Store
+.idea/
