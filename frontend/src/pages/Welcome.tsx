@@ -1,3 +1,4 @@
+import LibrasButton from "../components/LibrasButton";
 import Icon from "../components/Icon";
 import { Brand } from "../components/ui";
 export default function Welcome() {
@@ -15,11 +16,12 @@ export default function Welcome() {
           <p className="eyebrow">
             <Icon name="spark" size={16} /> UM NOVO JEITO DE SE CONECTAR
           </p>
-          <h1>
-            Mais que aprender.
-            <br />
-            <span>Conectar em Libras.</span>
-          </h1>
+          <div className="translated-heading welcome-translated-heading">
+            <h1>
+              Aprender <span>Libras</span>
+            </h1>
+            <LibrasButton titleId="inicio" />
+          </div>
           <p className="welcome-description">
             Encontre quem ensina, compartilhe o que sabe e descubra novas
             possibilidades. Uma conversa de cada vez.
@@ -36,7 +38,10 @@ export default function Welcome() {
         </div>
         <section className="role-panel" aria-labelledby="role-title">
           <span className="section-number">01 / VAMOS COMEÇAR</span>
-          <h2 id="role-title">Qual é o seu caminho?</h2>
+          <div className="translated-heading">
+            <h2 id="role-title">Escolher perfil</h2>
+            <LibrasButton titleId="escolher-perfil" />
+          </div>
           <p className="muted">Escolha como quer fazer parte da comunidade.</p>
           <a href="#/aluno/login" className="role-card">
             <span className="role-icon">

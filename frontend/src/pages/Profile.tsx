@@ -50,12 +50,8 @@ export default function Profile({
   return (
     <>
       <PageHeading
+        librasId={user.tipo === "aluno" ? "perfil-aluno" : "perfil-professor"}
         eyebrow="DO SEU JEITO"
-        title={
-          user.tipo === "aluno"
-            ? "Vamos conhecer você."
-            : "Seu perfil, sua história."
-        }
         description={
           user.tipo === "aluno"
             ? "Seu nível nos ajuda a encontrar professores para o seu próximo passo."

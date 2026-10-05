@@ -19,6 +19,7 @@ describe('Configuração do banco', () => {
         'alunos',
         'aulas',
         'horarios_professores',
+        'notificacoes',
         'professores',
         'solicitacoes',
         'usuarios',

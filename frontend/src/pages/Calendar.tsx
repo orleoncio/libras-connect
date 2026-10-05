@@ -4,7 +4,9 @@ import { dateKey, dayLabel, rangeLabel } from "../lib/date";
 import type { Lesson, Role } from "../types";
 import { Empty, PageHeading, RemoteState } from "../components/ui";
 import Icon from "../components/Icon";
+import LessonDialog from "../components/LessonDialog";
 export default function Calendar({ role }: { role: Role }) {
+  const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const remote = useRemote<Lesson[]>("/aulas");
   const today = dateKey(new Date());
   const [month, setMonth] = useState(
@@ -53,8 +55,8 @@ export default function Calendar({ role }: { role: Role }) {
   return (
     <>
       <PageHeading
+        librasId="calendario"
         eyebrow="TEMPO PARA SE CONECTAR"
-        title="Seu calendário de encontros."
         description="Aqui estão suas aulas confirmadas. Todos os horários seguem o horário de Brasília."
         action={
           <button
@@ -149,6 +151,13 @@ export default function Calendar({ role }: { role: Role }) {
             {lessons.length ? (
               lessons.map((lesson) => (
                 <article className="agenda-event" key={lesson.id}>
+                  <button
+                    className="icon-button lesson-open"
+                    aria-label={`Abrir aula com ${role === "aluno" ? lesson.professorNome : lesson.alunoNome}`}
+                    onClick={() => setActiveLesson(lesson)}
+                  >
+                    <Icon name="video" />
+                  </button>
                   <span className="status aceita">Confirmada</span>
                   <h3>
                     {role === "aluno" ? lesson.professorNome : lesson.alunoNome}
@@ -167,6 +176,15 @@ export default function Calendar({ role }: { role: Role }) {
             )}
           </aside>
         </div>
+      )}
+      {activeLesson && (
+        <LessonDialog
+          key={activeLesson.id}
+          lesson={activeLesson}
+          role={role}
+          onClose={() => setActiveLesson(null)}
+          onStarted={remote.refresh}
+        />
       )}
     </>
   );

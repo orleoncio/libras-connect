@@ -57,8 +57,8 @@ export default function Availability() {
   return (
     <>
       <PageHeading
+        librasId="horarios"
         eyebrow="ABRA ESPAÇO PARA NOVAS CONEXÕES"
-        title="Seu tempo para ensinar."
         description="Adicione períodos de uma hora. Publique horários de uma mesma semana por vez."
       />
       <div className="availability-layout">

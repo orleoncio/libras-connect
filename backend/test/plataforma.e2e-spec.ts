@@ -19,6 +19,11 @@ import {
 } from '../dist/entity/usuario.entity.js';
 import { HorarioProfessor } from '../dist/entity/horario-professor.entity.js';
 import { Solicitacao } from '../dist/entity/solicitacao.entity.js';
+import { AulaController } from '../dist/controller/aula.controller.js';
+import { NotificacaoController } from '../dist/controller/notificacao.controller.js';
+import { AulaService } from '../dist/service/aula.service.js';
+import { NotificacaoService } from '../dist/service/notificacao.service.js';
+import { Notificacao } from '../dist/entity/notificacao.entity.js';
 import { Aula } from '../dist/entity/aula.entity.js';
 import {
   databaseOptions,
@@ -105,6 +110,7 @@ for (const entity of [
   HorarioProfessor,
   Solicitacao,
   Aula,
+  Notificacao,
 ])
   tables.set(entity, new Map());
 const table = (entity: unknown) => tables.get(entity)!;
@@ -139,10 +145,24 @@ const fakeQuery = async (sql: string, params: any[]) => {
         ),
       }))
       .filter((user) => user.horarios.length);
+  if (sql.includes('FROM notificacoes'))
+    return [...table(Notificacao).values()]
+      .filter((n) => n.alunoId === params[0])
+      .map((n) => {
+        const aula = table(Aula).get(n.aulaId);
+        const slot = table(HorarioProfessor).get(aula.horarioId);
+        return {
+          ...n,
+          linkMeet: aula.linkMeet,
+          inicio: slot.inicio,
+          professorNome: table(UsuarioRegistro).get(slot.professorId).nome,
+        };
+      });
   const isSolicitacoes = sql.includes('FROM solicitacoes');
   return [...table(isSolicitacoes ? Solicitacao : Aula).values()]
     .filter((row) => {
       const slot = table(HorarioProfessor).get(row.horarioId);
+      if (params[2] && row.id !== params[2]) return false;
       return sql.includes('WHERE s."alunoId"') ||
         sql.includes('WHERE a."alunoId"')
         ? row.alunoId === params[0]
@@ -152,6 +172,14 @@ const fakeQuery = async (sql: string, params: any[]) => {
       const slot = table(HorarioProfessor).get(row.horarioId);
       return {
         ...row,
+        ...(!isSolicitacoes
+          ? {
+              linkMeet:
+                params[1] === 'professor' || row.iniciadaEm
+                  ? row.linkMeet
+                  : null,
+            }
+          : {}),
         inicio: slot.inicio,
         fim: slot.fim,
         alunoNome: table(UsuarioRegistro).get(row.alunoId).nome,
@@ -160,6 +188,7 @@ const fakeQuery = async (sql: string, params: any[]) => {
       };
     });
 };
+let failNotification = false;
 const manager = {
   query: fakeQuery,
   findOneBy: async (entity: unknown, where: any) =>
@@ -174,12 +203,18 @@ const manager = {
     return row;
   },
   create: (_entity: unknown, data: any) => ({
+    lidaEm: null,
+    iniciadaEm: null,
     ...data,
     id: randomUUID(),
     criadoEm: new Date(),
     atualizadoEm: new Date(),
   }),
   save: async (entity: unknown, row: any) => {
+    if (entity === Notificacao && failNotification) {
+      failNotification = false;
+      throw new Error('Falha simulada ao salvar notificação');
+    }
     if (
       entity === Solicitacao &&
       [...table(entity).values()].some(
@@ -263,9 +298,15 @@ describe(`Plataforma HTTP (${realDatabase ? 'PostgreSQL' : 'persistência simula
           secret: 'segredo-de-testes-com-mais-de-32-caracteres',
         }),
       ],
-      controllers: [PlataformaController],
+      controllers: [
+        PlataformaController,
+        AulaController,
+        NotificacaoController,
+      ],
       providers: [
         PlataformaService,
+        AulaService,
+        NotificacaoService,
         JwtGuard,
         AlunoGuard,
         ProfessorGuard,
@@ -370,7 +411,9 @@ describe(`Plataforma HTTP (${realDatabase ? 'PostgreSQL' : 'persistência simula
       ids.outroProfessor,
       'patch',
       `/solicitacoes/${requestId}/aceitar`,
-    ).expect(403);
+    )
+      .send({ linkMeet: 'https://meet.google.com/abc-defg-hij' })
+      .expect(403);
     const aluno = await call(ids.aluno, 'get', '/solicitacoes').expect(200);
     expect(aluno.body.map((row: any) => row.id)).toEqual([requestId]);
     const professor = await call(
@@ -387,12 +430,23 @@ describe(`Plataforma HTTP (${realDatabase ? 'PostgreSQL' : 'persistência simula
         .expect(201)
     ).body.id;
   });
+  it('exige um link válido antes de confirmar', async () => {
+    for (const body of [
+      {},
+      { linkMeet: 'https://example.com/abc-defg-hij' },
+      { linkMeet: 'http://meet.google.com/abc-defg-hij' },
+      { linkMeet: 'https://meet.google.com.evil.com/abc-defg-hij' },
+    ]) {
+      await call(ids.professor, 'patch', `/solicitacoes/${requestId}/aceitar`)
+        .send(body)
+        .expect(400);
+    }
+    expect(await repo(Aula).findOneBy({ horarioId: ids.horario })).toBeNull();
+  });
   it('aceite cria aula, ocupa horário, confirma solicitação e recusa concorrentes', async () => {
-    await call(
-      ids.professor,
-      'patch',
-      `/solicitacoes/${requestId}/aceitar`,
-    ).expect(200);
+    await call(ids.professor, 'patch', `/solicitacoes/${requestId}/aceitar`)
+      .send({ linkMeet: 'https://meet.google.com/abc-defg-hij' })
+      .expect(200);
     expect(
       (await repo(HorarioProfessor).findOneBy({ id: ids.horario })).livre,
     ).toBe(false);
@@ -405,11 +459,9 @@ describe(`Plataforma HTTP (${realDatabase ? 'PostgreSQL' : 'persistência simula
     expect(
       (await repo(Aula).findOneBy({ horarioId: ids.horario })).alunoId,
     ).toBe(ids.aluno);
-    await call(
-      ids.professor,
-      'patch',
-      `/solicitacoes/${requestId}/aceitar`,
-    ).expect(409);
+    await call(ids.professor, 'patch', `/solicitacoes/${requestId}/aceitar`)
+      .send({ linkMeet: 'https://meet.google.com/abc-defg-hij' })
+      .expect(409);
     const alunoCalendar = await call(ids.aluno, 'get', '/aulas').expect(200);
     expect(alunoCalendar.body).toHaveLength(1);
     expect(
@@ -419,12 +471,90 @@ describe(`Plataforma HTTP (${realDatabase ? 'PostgreSQL' : 'persistência simula
       (await call(ids.outroAluno, 'get', '/aulas').expect(200)).body,
     ).toEqual([]);
   });
+  it.skipIf(realDatabase)(
+    'reverte o início se a notificação não for salva',
+    async () => {
+      const aula = await repo(Aula).findOneBy({ horarioId: ids.horario });
+      failNotification = true;
+      await call(ids.professor, 'post', `/aulas/${aula.id}/iniciar`).expect(
+        500,
+      );
+      expect(
+        (await repo(Aula).findOneBy({ id: aula.id })).iniciadaEm,
+      ).toBeNull();
+      expect(
+        (await call(ids.aluno, 'get', '/notificacoes').expect(200)).body,
+      ).toEqual([]);
+    },
+  );
+  it('libera o link e notifica somente ao iniciar, sem duplicação', async () => {
+    const aula = await repo(Aula).findOneBy({ horarioId: ids.horario });
+    const path = `/aulas/${aula.id}`;
+    expect(
+      (await call(ids.aluno, 'get', path).expect(200)).body.linkMeet,
+    ).toBeNull();
+    expect(
+      (await call(ids.professor, 'get', path).expect(200)).body.linkMeet,
+    ).toBe('https://meet.google.com/abc-defg-hij');
+    expect(
+      (await call(ids.aluno, 'get', '/notificacoes').expect(200)).body,
+    ).toEqual([]);
+    await call(ids.outroAluno, 'get', path).expect(404);
+    await call(ids.aluno, 'post', path + '/iniciar').expect(403);
+    await call(ids.outroProfessor, 'post', path + '/iniciar').expect(403);
+    await call(ids.professor, 'patch', path + '/link')
+      .send({ linkMeet: 'https://meet.google.com/xyz-abcd-efg?authuser=1' })
+      .expect(200);
+    const started = await Promise.all([
+      call(ids.professor, 'post', path + '/iniciar').expect(201),
+      call(ids.professor, 'post', path + '/iniciar').expect(201),
+    ]);
+    expect(started[0].body.iniciadaEm).toBe(started[1].body.iniciadaEm);
+    expect((await call(ids.aluno, 'get', path).expect(200)).body.linkMeet).toBe(
+      'https://meet.google.com/xyz-abcd-efg',
+    );
+    const notifications = (
+      await call(ids.aluno, 'get', '/notificacoes').expect(200)
+    ).body;
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0].linkMeet).toBe(
+      'https://meet.google.com/xyz-abcd-efg',
+    );
+    expect(
+      (await call(ids.outroAluno, 'get', '/notificacoes').expect(200)).body,
+    ).toEqual([]);
+    await call(ids.professor, 'get', '/notificacoes').expect(403);
+    await call(
+      ids.outroAluno,
+      'patch',
+      `/notificacoes/${notifications[0].id}/lida`,
+    ).expect(404);
+    const read = await call(
+      ids.aluno,
+      'patch',
+      `/notificacoes/${notifications[0].id}/lida`,
+    ).expect(200);
+    expect(
+      (
+        await call(
+          ids.aluno,
+          'patch',
+          `/notificacoes/${notifications[0].id}/lida`,
+        ).expect(200)
+      ).body.lidaEm,
+    ).toBe(read.body.lidaEm);
+    await call(ids.professor, 'patch', path + '/link')
+      .send({ linkMeet: 'https://meet.google.com/abc-defg-hij' })
+      .expect(409);
+  });
   it('impede aceitar uma solicitação que conflita com outra aula confirmada', async () => {
     await call(
       ids.outroProfessor,
       'patch',
       `/solicitacoes/${overlapRequestId}/aceitar`,
-    ).expect(409);
+    )
+      .send({ linkMeet: 'https://meet.google.com/abc-defg-hij' })
+      .expect(409);
     expect(
       (await repo(HorarioProfessor).findOneBy({ id: ids.outroHorario })).livre,
     ).toBe(true);

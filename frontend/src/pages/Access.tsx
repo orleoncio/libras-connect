@@ -4,6 +4,7 @@ import type { Role, User } from "../types";
 import { levels } from "../types";
 import { api, json, tokenStore } from "../lib/api";
 import { Brand, Feedback } from "../components/ui";
+import LibrasButton from "../components/LibrasButton";
 import Icon from "../components/Icon";
 export default function Access({
   role,
@@ -97,7 +98,10 @@ export default function Access({
           <span className="badge">
             {role === "aluno" ? "Espaço do aluno" : "Espaço do professor"}
           </span>
-          <h1>{register ? "Vamos criar sua conta." : "Bom ter você aqui."}</h1>
+          <div className="translated-heading">
+            <h1>{register ? "Cadastro" : "Entrar"}</h1>
+            <LibrasButton titleId={register ? "cadastro" : "login"} />
+          </div>
           <p className="muted">
             {register
               ? "Preencha seus dados para começar a se conectar."

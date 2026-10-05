@@ -12,6 +12,7 @@ import Teachers from "./pages/Teachers";
 import Requests from "./pages/Requests";
 import Calendar from "./pages/Calendar";
 import Availability from "./pages/Availability";
+import NotificationsBell from "./components/NotificationsBell";
 import "./App.css";
 
 export default function App() {
@@ -170,6 +171,7 @@ export default function App() {
         <header className="app-header">
           <span>Uma nova conexão começa com você.</span>
           <div>
+            {user.tipo === "aluno" && <NotificationsBell key={user.id} />}
             <span className="header-date">
               {new Intl.DateTimeFormat("pt-BR", {
                 day: "numeric",

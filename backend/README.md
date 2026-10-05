@@ -185,7 +185,7 @@ Horários consecutivos são permitidos (14h–15h e 15h–16h); horários duplic
 
 ### Entidade Aula
 
-`Aula` contém `id`, `horarioId`, `alunoId` e `criadoEm`. As FKs referenciam o horário e o perfil de aluno. O professor é obtido pelo horário. `horarioId` é único, permitindo uma aula por horário; as referências de aulas impedem excluir seus horários ou alunos.
+`Aula` contém `id`, `horarioId`, `alunoId`, `linkMeet`, `iniciadaEm` e `criadoEm`. As FKs referenciam o horário e o perfil de aluno. O professor é obtido pelo horário. `horarioId` é único, permitindo uma aula por horário; as referências de aulas impedem excluir seus horários ou alunos.
 
 O fluxo de solicitações está implementado: o aceite pelo professor cria a aula e define `livre=false` na mesma transação. Uma solicitação pendente não cria aula nem ocupa o horário.
 
@@ -209,7 +209,7 @@ Todas as rotas abaixo exigem JWT:
 | PATCH | `/solicitacoes/:id/recusar` | Professor responsável, recusar um pedido |
 | GET | `/aulas` | Cada perfil consulta suas próprias aulas para o calendário |
 
-Os PATCH de perfil recebem todos os campos cadastrais do respectivo perfil, sem senha. Os PATCH de aceite e recusa não precisam de corpo. Para obter o perfil atualizado após o PATCH, use `/auth/me`.
+Os PATCH de perfil recebem todos os campos cadastrais do respectivo perfil, sem senha. O PATCH de aceite exige `{ "linkMeet": "https://meet.google.com/abc-defg-hij" }`. O PATCH de recusa não precisa de corpo. Para obter o perfil atualizado após o PATCH, use `/auth/me`.
 
 A ordem de níveis é A1 < A2 < B1 < B2 < C1 < C2. O filtro é aplicado na API, e a regra de nível superior também é validada ao solicitar o horário. Alunos C2 não encontram professores de nível superior dentro dessa escala.
 
@@ -220,3 +220,32 @@ A recusa não ocupa o horário e não cria aula. Há uma restrição única por 
 `FRONTEND_ORIGIN` define a origem aceita pelo CORS (padrão `http://localhost:5173`); várias origens podem ser separadas por vírgulas. Em desenvolvimento o frontend também usa o proxy `/api` do Vite.
 
 A suíte HTTP inclui os fluxos de busca, atualização cadastral, pedido, aceite, recusa, privacidade entre perfis e conflitos. Por padrão a persistência é simulada. `AUTH_E2E_DATABASE=true npm run test:e2e` executa os mesmos fluxos no PostgreSQL configurado no `.env`, com contas temporárias removidas ao final.
+
+
+## Google Meet manual e notificações
+
+Com PostgreSQL iniciado e o arquivo `.env` configurado, execute em `backend/`:
+
+```bash
+npm run migration:run
+```
+
+A migration `1780480000003-meet-notificacoes` adiciona `linkMeet` e `iniciadaEm` às aulas e cria `notificacoes`. Aulas anteriores continuam válidas; o professor pode adicionar o link pelo calendário antes de iniciar.
+
+Ao aceitar uma solicitação, o professor cria uma reunião no Google Meet e informa o link no modal. A API aceita links HTTPS de salas no formato `https://meet.google.com/abc-defg-hij`, normaliza o endereço e salva o link junto à aula. Essa validação confere o formato, sem verificar a existência da reunião. Não há OAuth ou criação automática de reuniões.
+
+No calendário, o ícone de vídeo abre os detalhes. O professor pode corrigir o link antes de iniciar. Ao clicar em **Iniciar aula**, a API registra o início e salva a notificação para o aluno na mesma transação; o frontend abre o Meet em outra aba. Se o navegador bloquear essa aba, um botão de entrada continua disponível. O início indica que o professor está pronto, sem consultar a presença no Google Meet.
+
+O aluno só recebe o link depois do início, tanto nas consultas de aulas quanto na notificação. O sino mostra avisos não lidos, histórico e links para entrar na chamada. Enquanto a plataforma estiver visível, o frontend consulta notificações a cada 10 segundos; avisos continuam salvos para o próximo acesso. Essa etapa usa notificações dentro da plataforma.
+
+Todas as rotas exigem JWT e verificam propriedade/papel:
+
+| Método | Rota | Função |
+| --- | --- | --- |
+| GET | `/aulas/:id` | Detalhes de uma aula do usuário autenticado |
+| PATCH | `/aulas/:id/link` | Professor responsável salva `{ "linkMeet": "https://meet.google.com/abc-defg-hij" }` antes de iniciar |
+| POST | `/aulas/:id/iniciar` | Professor responsável inicia e notifica; sem corpo |
+| GET | `/notificacoes` | Aluno consulta seus próprios avisos |
+| PATCH | `/notificacoes/:id/lida` | Aluno marca seu aviso como lido; sem corpo |
+
+Repetir o início retorna a mesma aula sem duplicar a notificação. Após iniciar, o link não pode ser alterado (409). Aulas antigas sem link também retornam 409 ao tentar iniciar; salve o link primeiro. Marcar como lida repetidamente preserva a primeira data de leitura.

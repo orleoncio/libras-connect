@@ -147,8 +147,8 @@ export default function Teachers() {
   return (
     <>
       <PageHeading
+        librasId="professores"
         eyebrow="ENCONTRE SUA PRÓXIMA CONEXÃO"
-        title="Aprender fica melhor junto."
         description="Professores com nível superior ao seu, prontos para ajudar você a avançar."
       />
       <div className="discovery-banner">

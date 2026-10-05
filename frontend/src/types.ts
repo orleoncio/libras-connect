@@ -41,10 +41,22 @@ export interface Booking {
   criadoEm: string;
 }
 export interface Lesson {
+  linkMeet?: string | null;
+  iniciadaEm?: string | null;
   id: string;
   horarioId: string;
   inicio: string;
   fim: string;
   alunoNome: string;
+  professorNome: string;
+}
+
+export interface AppNotification {
+  id: string;
+  aulaId: string;
+  criadoEm: string;
+  lidaEm: string | null;
+  linkMeet: string;
+  inicio: string;
   professorNome: string;
 }

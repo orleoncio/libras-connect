@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 import Icon from "./Icon";
+import LibrasButton from "./LibrasButton";
+import { librasTitles } from "../lib/libras";
+import type { LibrasTitleId } from "../lib/libras";
 export function Brand() {
   return (
     <a className="brand" href="#/">
@@ -83,17 +86,22 @@ export function PageHeading({
   title,
   description,
   action,
+  librasId,
 }: {
   eyebrow: string;
-  title: string;
+  title?: string;
   description: string;
   action?: ReactNode;
+  librasId?: LibrasTitleId;
 }) {
   return (
     <div className="page-heading">
       <div>
         <p className="eyebrow">{eyebrow}</p>
-        <h1>{title}</h1>
+        <div className="translated-heading">
+          <h1>{librasId ? librasTitles[librasId].title : title}</h1>
+          {librasId && <LibrasButton titleId={librasId} />}
+        </div>
         <p className="muted">{description}</p>
       </div>
       {action}

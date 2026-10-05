@@ -20,6 +20,7 @@ import {
   PerfilProfessorDto,
 } from '../dto/plataforma.dto.js';
 import { PlataformaService } from '../service/plataforma.service.js';
+import { LinkMeetDto } from '../dto/link-meet.dto.js';
 @Controller()
 @UseGuards(JwtGuard)
 export class PlataformaController {
@@ -58,8 +59,9 @@ export class PlataformaController {
   @Patch('solicitacoes/:id/aceitar') @UseGuards(ProfessorGuard) aceitar(
     @Req() req: AuthRequest,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: LinkMeetDto,
   ) {
-    return this.plataforma.decidir(req.usuario.sub, id, true);
+    return this.plataforma.decidir(req.usuario.sub, id, true, dto.linkMeet);
   }
   @Patch('solicitacoes/:id/recusar') @UseGuards(ProfessorGuard) recusar(
     @Req() req: AuthRequest,

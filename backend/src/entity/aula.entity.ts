@@ -4,6 +4,8 @@ export class Aula {
   horarioId: string;
   alunoId: string;
   criadoEm: Date;
+  linkMeet: string | null;
+  iniciadaEm: Date | null;
 }
 export const AulaEntity = new EntitySchema<Aula>({
   name: 'Aula',
@@ -14,6 +16,8 @@ export const AulaEntity = new EntitySchema<Aula>({
     horarioId: { type: 'uuid', unique: true },
     alunoId: { type: 'uuid' },
     criadoEm: { type: 'timestamptz', createDate: true },
+    linkMeet: { type: 'varchar', length: 2048, nullable: true },
+    iniciadaEm: { type: 'timestamptz', nullable: true },
   },
   foreignKeys: [
     {

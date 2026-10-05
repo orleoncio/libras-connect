@@ -22,6 +22,7 @@ import type {
   PerfilAlunoDto,
   PerfilProfessorDto,
 } from '../dto/plataforma.dto.js';
+import { normalizarLinkMeet } from '../dto/link-meet.dto.js';
 const niveis = Object.values(NivelLibras);
 @Injectable()
 export class PlataformaService {
@@ -157,7 +158,12 @@ export class PlataformaService {
       [id],
     );
   }
-  async decidir(professorId: string, id: string, aceitar: boolean) {
+  async decidir(
+    professorId: string,
+    id: string,
+    aceitar: boolean,
+    linkMeet?: string,
+  ) {
     return this.db.transaction(async (manager) => {
       const original = await manager.findOneBy(Solicitacao, { id });
       if (!original) throw new NotFoundException('Solicitação não encontrada');
@@ -188,6 +194,7 @@ export class PlataformaService {
         manager.create(Aula, {
           horarioId: horario.id,
           alunoId: solicitacao.alunoId,
+          linkMeet: normalizarLinkMeet(linkMeet!),
         }),
       );
       horario.livre = false;
@@ -205,11 +212,13 @@ export class PlataformaService {
   }
   async aulas(id: string, tipo: TipoUsuario) {
     return this.db.query(
-      `SELECT a.id, a."horarioId", h.inicio, h.fim, aluno.nome AS "alunoNome", professor.nome AS "professorNome"
+      `SELECT a.id, a."horarioId", a."iniciadaEm",
+      CASE WHEN $2 = 'professor' OR a."iniciadaEm" IS NOT NULL THEN a."linkMeet" ELSE NULL END AS "linkMeet",
+      h.inicio, h.fim, aluno.nome AS "alunoNome", professor.nome AS "professorNome"
       FROM aulas a JOIN horarios_professores h ON h.id = a."horarioId"
       JOIN usuarios aluno ON aluno.id = a."alunoId" JOIN usuarios professor ON professor.id = h."professorId"
       WHERE ${tipo === TipoUsuario.ALUNO ? 'a."alunoId"' : 'h."professorId"'} = $1 ORDER BY h.inicio`,
-      [id],
+      [id, tipo],
     );
   }
   private conflito(error: unknown, mensagem: string): never {

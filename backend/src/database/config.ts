@@ -3,6 +3,7 @@ import { entities } from '../entity/index.js';
 import { InitialSchema1780480000000 } from './migrations/1780480000000-initial-schema.js';
 import { HorariosAulas1780480000001 } from './migrations/1780480000001-horarios-aulas.js';
 import { Solicitacoes1780480000002 } from './migrations/1780480000002-solicitacoes.js';
+import { MeetNotificacoes1780480000003 } from './migrations/1780480000003-meet-notificacoes.js';
 export function validateEnvironment(env: Record<string, unknown>) {
   for (const key of [
     'DB_HOST',
@@ -36,6 +37,7 @@ export function databaseOptions(
       InitialSchema1780480000000,
       HorariosAulas1780480000001,
       Solicitacoes1780480000002,
+      MeetNotificacoes1780480000003,
     ],
     synchronize: false,
   };

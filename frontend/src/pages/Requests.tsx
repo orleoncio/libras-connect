@@ -6,6 +6,7 @@ import { useRemote } from "../hooks/useRemote";
 import type { Booking, Role } from "../types";
 import { Empty, Feedback, PageHeading, RemoteState } from "../components/ui";
 import Icon from "../components/Icon";
+import AcceptLessonDialog from "../components/AcceptLessonDialog";
 const labels = {
   pendente: "Aguardando resposta",
   aceita: "Confirmada",
@@ -14,24 +15,18 @@ const labels = {
 export default function Requests({ role }: { role: Role }) {
   const now = useNow();
   const remote = useRemote<Booking[]>("/solicitacoes");
+  const [accepting, setAccepting] = useState<Booking | null>(null);
   const [filter, setFilter] = useState("todas");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  async function decide(id: string, accept: boolean) {
+  async function refuse(id: string) {
     setBusy(id);
     setError("");
     setSuccess("");
     try {
-      await api(
-        `/solicitacoes/${id}/${accept ? "aceitar" : "recusar"}`,
-        json("PATCH"),
-      );
-      setSuccess(
-        accept
-          ? "Aula confirmada! Ela já está no seu calendário e no do aluno."
-          : "Solicitação recusada. O horário continua disponível.",
-      );
+      await api(`/solicitacoes/${id}/recusar`, json("PATCH"));
+      setSuccess("Solicitação recusada. O horário continua disponível.");
       remote.refresh();
     } catch (err) {
       setError((err as Error).message);
@@ -48,13 +43,11 @@ export default function Requests({ role }: { role: Role }) {
   return (
     <>
       <PageHeading
+        librasId={
+          role === "aluno" ? "solicitacoes-aluno" : "solicitacoes-professor"
+        }
         eyebrow={
           role === "professor" ? "NOVAS CONEXÕES" : "ACOMPANHE SEUS ENCONTROS"
-        }
-        title={
-          role === "professor"
-            ? "Quem quer aprender com você."
-            : "Suas solicitações."
         }
         description={
           role === "professor"
@@ -147,14 +140,18 @@ export default function Requests({ role }: { role: Role }) {
                       <button
                         className="button secondary"
                         disabled={!!busy}
-                        onClick={() => decide(item.id, false)}
+                        onClick={() => refuse(item.id)}
                       >
                         Recusar
                       </button>
                       <button
                         className="button primary"
                         disabled={!!busy || expired}
-                        onClick={() => decide(item.id, true)}
+                        onClick={() => {
+                          setError("");
+                          setSuccess("");
+                          setAccepting(item);
+                        }}
                       >
                         {busy === item.id ? "Aguarde…" : "Aceitar aula"}
                         <Icon name="check" size={17} />
@@ -177,6 +174,19 @@ export default function Requests({ role }: { role: Role }) {
               : "Cadastre seus horários para que os alunos possam solicitar uma aula."}
           </Empty>
         ))}
+      {accepting && (
+        <AcceptLessonDialog
+          booking={accepting}
+          onClose={() => setAccepting(null)}
+          onAccepted={() => {
+            setAccepting(null);
+            setSuccess(
+              "Aula confirmada! O link está salvo e será enviado ao aluno quando você iniciar.",
+            );
+            remote.refresh();
+          }}
+        />
+      )}
     </>
   );
 }
